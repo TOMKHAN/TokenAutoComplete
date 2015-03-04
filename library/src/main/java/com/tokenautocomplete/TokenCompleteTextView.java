@@ -40,6 +40,8 @@ import android.widget.TextView;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Gmail style auto complete view with easy token customization
@@ -122,6 +124,12 @@ public abstract class TokenCompleteTextView extends MultiAutoCompleteTextView im
             public CharSequence filter(CharSequence source, int start, int end, Spanned dest, int dstart, int dend) {
                 //Detect single commas, remove them and complete the current token instead
                 if (source.length() == 1 && source.charAt(0) == ',') {
+                    performCompletion();
+                    return "";
+                }
+
+                //Detect space, remove them and complete the current token instead
+                if (source.length() == 1 && source.charAt(0) == ' ') {
                     performCompletion();
                     return "";
                 }
@@ -298,16 +306,18 @@ public abstract class TokenCompleteTextView extends MultiAutoCompleteTextView im
 
     @Override
     public void performCompletion() {
-        if (getListSelection() == ListView.INVALID_POSITION) {
-            Object bestGuess;
-            if (getAdapter().getCount() > 0) {
-                bestGuess = getAdapter().getItem(0);
+        if (isValidEmail(currentCompletionText())) {
+            if (getListSelection() == ListView.INVALID_POSITION) {
+                Object bestGuess;
+                if (getAdapter().getCount() > 0) {
+                    bestGuess = getAdapter().getItem(0);
+                } else {
+                    bestGuess = defaultObject(currentCompletionText());
+                }
+                replaceText(convertSelectionToString(bestGuess));
             } else {
-                bestGuess = defaultObject(currentCompletionText());
+                super.performCompletion();
             }
-            replaceText(convertSelectionToString(bestGuess));
-        } else {
-            super.performCompletion();
         }
     }
 
@@ -608,6 +618,15 @@ public abstract class TokenCompleteTextView extends MultiAutoCompleteTextView im
         }
     }
 
+    public boolean isValidEmail(String email) {
+        Pattern pattern = Pattern
+                .compile("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,4}");
+        Matcher matcher = pattern.matcher(email);
+        if (matcher.find()) {
+            return true;
+        }
+        return false;
+    }
 
     /**
      * Append a token object to the object list
@@ -969,7 +988,6 @@ public abstract class TokenCompleteTextView extends MultiAutoCompleteTextView im
 
         @Override
         public void onTextChanged(CharSequence s, int start, int before, int count) {
-            System.out.println("changing text: " + s);
             Editable text = getText();
             if (text == null)
                 return;
@@ -1010,12 +1028,9 @@ public abstract class TokenCompleteTextView extends MultiAutoCompleteTextView im
             if (obj instanceof Serializable) {
                 serializables.add((Serializable)obj);
             } else {
-                System.out.println("Unable to save '" + obj + "'");
             }
         }
         if (serializables.size() != objects.size()) {
-            System.out.println("You should make your objects Serializable or override");
-            System.out.println("getSerializableObjects and convertSerializableArrayToObjectArray");
         }
 
         return serializables;
@@ -1148,9 +1163,6 @@ public abstract class TokenCompleteTextView extends MultiAutoCompleteTextView im
         // The onKeyPressed method does not always do this.
         @Override
         public boolean deleteSurroundingText(int beforeLength, int afterLength) {
-            System.out.println("before: " + beforeLength + " after: " + afterLength);
-            System.out.println("selection: " + getSelectionStart() + " end: " +getSelectionEnd());
-
             //Shouldn't be able to delete prefix, so don't do anything
             if (getSelectionStart() <= prefix.length())
                 beforeLength = 0;
